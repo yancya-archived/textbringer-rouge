@@ -1,0 +1,79 @@
+name: Auto-release on Rouge update
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  auto-release:
+    # DependabotのRouge更新PRがマージされた時のみ実行
+    if: |
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.title, 'rouge')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # NOTE: デフォルトのGITHUB_TOKENだと後続のrelease.ymlがトリガーされない
+          # 必要に応じてPATに変更: token: ${{ secrets.PAT }}
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          # 現在のバージョンを取得
+          CURRENT=$(grep VERSION lib/textbringer/rouge/version.rb | grep -oP '"\K[^"]+')
+          echo "Current version: $CURRENT"
+
+          # patch バージョンを上げる
+          IFS='.' read -r major minor patch <<< "$CURRENT"
+          NEW_VERSION="$major.$minor.$((patch + 1))"
+          echo "New version: $NEW_VERSION"
+
+          # ファイル更新 (macOS/Linux両対応)
+          ruby -i -pe "sub(/VERSION = \".*\"/, \"VERSION = \\\"$NEW_VERSION\\\"\") if /VERSION/" lib/textbringer/rouge/version.rb
+
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "current_version=$CURRENT" >> $GITHUB_OUTPUT
+
+      - name: Get Rouge version
+        id: rouge
+        run: |
+          ROUGE_VERSION=$(grep -A 1 "rouge (" Gemfile.lock | grep -v "rouge (" | tr -d ' ')
+          echo "version=$ROUGE_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add lib/textbringer/rouge/version.rb
+          git commit -m "Bump version to ${{ steps.bump.outputs.new_version }} for Rouge ${{ steps.rouge.outputs.version }}
+
+Automatically bumped patch version following Rouge dependency update.
+
+Co-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag -a "v${{ steps.bump.outputs.new_version }}" -m "Release v${{ steps.bump.outputs.new_version }} - Rouge ${{ steps.rouge.outputs.version }} update"
+          git push origin "v${{ steps.bump.outputs.new_version }}"
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Auto-release triggered!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Previous version**: ${{ steps.bump.outputs.current_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New version**: ${{ steps.bump.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Rouge version**: ${{ steps.rouge.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Tag \`v${{ steps.bump.outputs.new_version }}\` has been pushed." >> $GITHUB_STEP_SUMMARY
+          echo "The release workflow will publish to RubyGems.org automatically." >> $GITHUB_STEP_SUMMARY
