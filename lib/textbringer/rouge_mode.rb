@@ -8,9 +8,28 @@ module Textbringer
   class RougeMode < Mode
     include RougeAdapter
 
-    # Match common source file extensions
-    # This pattern will match before Fundamental mode but after specific modes like RubyMode
-    self.file_name_pattern = /\.(py|js|ts|jsx|tsx|json|yaml|yml|toml|xml|html|css|scss|sass|java|c|cpp|h|hpp|rs|go|php|rb|sh|bash|sql|md|txt|tf|tfvars|hcl)\z/i
+    # Dynamically build file_name_pattern from all Rouge lexers
+    # This matches all file extensions that Rouge supports
+    patterns = ::Rouge::Lexer.all.flat_map do |lexer|
+      next [] unless lexer.filenames
+
+      lexer.filenames.map do |pattern|
+        if pattern.start_with?("*.")
+          # "*.rb" -> /\.rb\z/i
+          ext = Regexp.escape(pattern[2..-1])
+          /\.#{ext}\z/i
+        elsif pattern.include?("*")
+          # "*.foo.bar" -> /\.foo\.bar\z/i
+          regex_pattern = Regexp.escape(pattern.sub(/^\*/, '')).gsub('\\*', '.*')
+          /#{regex_pattern}\z/i
+        else
+          # "Rakefile" -> /Rakefile\z/
+          /#{Regexp.escape(pattern)}\z/
+        end
+      end
+    end.compact
+
+    self.file_name_pattern = Regexp.union(patterns)
 
     def initialize(buffer)
       super(buffer)
