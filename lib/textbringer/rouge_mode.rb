@@ -10,7 +10,7 @@ module Textbringer
 
     # Match common source file extensions
     # This pattern will match before Fundamental mode but after specific modes like RubyMode
-    self.file_name_pattern = /\.(py|js|ts|jsx|tsx|json|yaml|yml|toml|xml|html|css|scss|sass|java|c|cpp|h|hpp|rs|go|php|rb|sh|bash|sql|md|txt)\z/i
+    self.file_name_pattern = /\.(py|js|ts|jsx|tsx|json|yaml|yml|toml|xml|html|css|scss|sass|java|c|cpp|h|hpp|rs|go|php|rb|sh|bash|sql|md|txt|tf|tfvars|hcl)\z/i
 
     def initialize(buffer)
       super(buffer)
