@@ -2,6 +2,6 @@
 
 module Textbringer
   module Rouge
-    VERSION = "0.99.0"
+    VERSION = "1.0.0"
   end
 end
